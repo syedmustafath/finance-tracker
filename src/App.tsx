@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toISODate, type Expense } from './budget'
 import { money } from './format'
+import { applyUpdate, SW_UPDATE_EVENT } from './registerSW'
 import { useStore } from './store'
 import { EditSheet } from './components/EditSheet'
 import { HistoryView } from './components/HistoryView'
@@ -40,7 +41,9 @@ function useToday() {
 
 interface Toast {
   message: string
-  undo?: () => void
+  action?: { label: string; onClick: () => void }
+  /** Sticky toasts (e.g. the update prompt) don't auto-dismiss */
+  sticky?: boolean
 }
 
 export default function App() {
@@ -53,8 +56,22 @@ export default function App() {
 
   const notify = useCallback((message: string, undo?: () => void) => {
     window.clearTimeout(toastTimer.current)
-    setToast({ message, undo })
+    setToast({ message, action: undo && { label: 'Undo', onClick: undo } })
     toastTimer.current = window.setTimeout(() => setToast(null), 4000)
+  }, [])
+
+  useEffect(() => {
+    const onUpdateReady = (e: Event) => {
+      const reg = (e as CustomEvent<ServiceWorkerRegistration>).detail
+      window.clearTimeout(toastTimer.current)
+      setToast({
+        message: 'A new version of Spendwise is ready',
+        action: { label: 'Reload', onClick: () => applyUpdate(reg) },
+        sticky: true,
+      })
+    }
+    window.addEventListener(SW_UPDATE_EVENT, onUpdateReady)
+    return () => window.removeEventListener(SW_UPDATE_EVENT, onUpdateReady)
   }, [])
 
   const closeSheet = useCallback(() => setEditing(null), [])
@@ -123,15 +140,15 @@ export default function App() {
       {toast && (
         <div className="toast" role="status">
           <span>{toast.message}</span>
-          {toast.undo && (
+          {toast.action && (
             <button
               className="toast-action"
               onClick={() => {
-                toast.undo!()
+                toast.action!.onClick()
                 setToast(null)
               }}
             >
-              Undo
+              {toast.action.label}
             </button>
           )}
         </div>

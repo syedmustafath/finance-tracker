@@ -3,5 +3,6 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  base: './',
+  // Root-relative: Vercel (and the manifest's absolute start_url/scope) serve this from '/'.
+  base: '/',
 })
