@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
-import { daysInMonth, groupByDay, monthKey, round2, shiftMonth, sum, type Expense } from '../budget'
-import { dayLabel, money, monthLabel } from '../format'
+import { useEffect, useMemo, useState } from 'react'
+import { cycleFor, cycleFromKey, groupByDay, round2, shiftCycle, sum, toISODate, type Expense } from '../budget'
+import { cycleLabel, dayLabel, money } from '../format'
 import type { Store } from '../store'
 import { ExpenseItem } from './ExpenseItem'
 
@@ -12,32 +12,48 @@ interface Props {
 
 export function HistoryView({ store, today, onEdit }: Props) {
   const { expenses, settings } = store
-  const currentMonth = monthKey(today)
-  const [month, setMonth] = useState(currentMonth)
+  const currentCycle = useMemo(() => cycleFor(today, settings.cycleStartDay), [today, settings.cycleStartDay])
+  const [cycleKey, setCycleKey] = useState(currentCycle.key)
+  // Jump back to the current cycle if the cycle-start-day setting changes underneath us.
+  useEffect(() => setCycleKey(currentCycle.key), [settings.cycleStartDay])
+  const cycle = useMemo(
+    () => (cycleKey === currentCycle.key ? currentCycle : cycleFromKey(cycleKey, settings.cycleStartDay)),
+    [cycleKey, currentCycle, settings.cycleStartDay],
+  )
 
-  const inMonth = useMemo(() => expenses.filter((e) => monthKey(e.date) === month), [expenses, month])
-  const days = useMemo(() => groupByDay(inMonth), [inMonth])
-  const total = sum(inMonth)
-  const dailyBudget = settings.monthlyBudget > 0 ? round2(settings.monthlyBudget / daysInMonth(month)) : 0
+  const startISO = toISODate(cycle.start)
+  const endISO = toISODate(cycle.end)
+  const inCycle = useMemo(
+    () => expenses.filter((e) => e.date >= startISO && e.date <= endISO),
+    [expenses, startISO, endISO],
+  )
+  const days = useMemo(() => groupByDay(inCycle), [inCycle])
+  const total = sum(inCycle)
+  const totalDays = Math.round((cycle.end.getTime() - cycle.start.getTime()) / 86_400_000) + 1
+  const dailyBudget = settings.monthlyBudget > 0 ? round2(settings.monthlyBudget / totalDays) : 0
 
   return (
     <>
       <section className="card month-nav">
-        <button className="btn ghost icon" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month">
+        <button
+          className="btn ghost icon"
+          onClick={() => setCycleKey(shiftCycle(cycleKey, -1, settings.cycleStartDay).key)}
+          aria-label="Previous cycle"
+        >
           ‹
         </button>
         <div className="month-nav-center">
-          <h2>{monthLabel(month)}</h2>
+          <h2>{cycleLabel(cycle, settings.cycleStartDay)}</h2>
           <span className="muted small">
-            {money(total, settings.currency)} spent
-            {settings.monthlyBudget > 0 && ` of ${money(settings.monthlyBudget, settings.currency)}`}
+            {money(total)} spent
+            {settings.monthlyBudget > 0 && ` of ${money(settings.monthlyBudget)}`}
           </span>
         </div>
         <button
           className="btn ghost icon"
-          onClick={() => setMonth(shiftMonth(month, 1))}
-          disabled={month >= currentMonth}
-          aria-label="Next month"
+          onClick={() => setCycleKey(shiftCycle(cycleKey, 1, settings.cycleStartDay).key)}
+          disabled={cycleKey >= currentCycle.key}
+          aria-label="Next cycle"
         >
           ›
         </button>
@@ -45,7 +61,7 @@ export function HistoryView({ store, today, onEdit }: Props) {
 
       {days.length === 0 && (
         <section className="card">
-          <p className="muted empty">No expenses recorded in {monthLabel(month)}.</p>
+          <p className="muted empty">No expenses recorded in this cycle.</p>
         </section>
       )}
 
@@ -55,10 +71,10 @@ export function HistoryView({ store, today, onEdit }: Props) {
           <section className="card day" key={day.date}>
             <div className="card-title-row">
               <h3 className="card-title">{dayLabel(day.date, today)}</h3>
-              <span className={`total ${over ? 'neg' : ''}`}>{money(day.total, settings.currency)}</span>
+              <span className={`total ${over ? 'neg' : ''}`}>{money(day.total)}</span>
             </div>
             {dailyBudget > 0 && (
-              <div className="bar thin" title={`Daily budget ${money(dailyBudget, settings.currency)}`}>
+              <div className="bar thin" title={`Daily budget ${money(dailyBudget)}`}>
                 <div
                   className={`bar-fill ${over ? 'over' : ''}`}
                   style={{ width: `${Math.min(100, (day.total / dailyBudget) * 100)}%` }}
@@ -67,7 +83,7 @@ export function HistoryView({ store, today, onEdit }: Props) {
             )}
             <ul className="expense-list">
               {day.expenses.map((e) => (
-                <ExpenseItem key={e.id} expense={e} currency={settings.currency} onClick={() => onEdit(e)} />
+                <ExpenseItem key={e.id} expense={e} onClick={() => onEdit(e)} />
               ))}
             </ul>
           </section>

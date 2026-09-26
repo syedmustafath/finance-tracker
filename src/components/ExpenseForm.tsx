@@ -5,7 +5,6 @@ type Draft = Omit<Expense, 'id' | 'createdAt'>
 
 interface Props {
   initial?: Draft
-  currency: string
   submitLabel: string
   onSubmit: (draft: Draft) => void
   /** Reset fields after submit (used by the quick-add form) */
@@ -13,19 +12,7 @@ interface Props {
   autoFocus?: boolean
 }
 
-function currencySymbol(currency: string) {
-  try {
-    return (
-      new Intl.NumberFormat(undefined, { style: 'currency', currency, currencyDisplay: 'narrowSymbol' })
-        .formatToParts(0)
-        .find((p) => p.type === 'currency')?.value ?? currency
-    )
-  } catch {
-    return currency
-  }
-}
-
-export function ExpenseForm({ initial, currency, submitLabel, onSubmit, resetOnSubmit, autoFocus }: Props) {
+export function ExpenseForm({ initial, submitLabel, onSubmit, resetOnSubmit, autoFocus }: Props) {
   const [amount, setAmount] = useState(initial ? String(initial.amount) : '')
   const [category, setCategory] = useState(initial?.category ?? 'food')
   const [note, setNote] = useState(initial?.note ?? '')
@@ -48,7 +35,7 @@ export function ExpenseForm({ initial, currency, submitLabel, onSubmit, resetOnS
   return (
     <form className="expense-form" onSubmit={submit}>
       <label className="amount-field">
-        <span className="currency">{currencySymbol(currency)}</span>
+        <span className="currency">৳</span>
         <input
           inputMode="decimal"
           type="number"

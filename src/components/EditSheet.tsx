@@ -4,13 +4,12 @@ import { ExpenseForm } from './ExpenseForm'
 
 interface Props {
   expense: Expense
-  currency: string
   onSave: (patch: Omit<Expense, 'id' | 'createdAt'>) => void
   onDelete: () => void
   onClose: () => void
 }
 
-export function EditSheet({ expense, currency, onSave, onDelete, onClose }: Props) {
+export function EditSheet({ expense, onSave, onDelete, onClose }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
@@ -33,7 +32,7 @@ export function EditSheet({ expense, currency, onSave, onDelete, onClose }: Prop
             Cancel
           </button>
         </div>
-        <ExpenseForm initial={expense} currency={currency} submitLabel="Save changes" onSubmit={onSave} />
+        <ExpenseForm initial={expense} submitLabel="Save changes" onSubmit={onSave} />
         <button className="btn danger" onClick={onDelete}>
           Delete expense
         </button>

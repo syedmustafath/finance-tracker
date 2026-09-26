@@ -4,7 +4,8 @@ import type { Expense, Settings } from './budget'
 const EXPENSES_KEY = 'spendwise.expenses.v1'
 const SETTINGS_KEY = 'spendwise.settings.v1'
 
-export const DEFAULT_SETTINGS: Settings = { monthlyBudget: 0, currency: 'USD' }
+// Cycle defaults to the 25th: that's when the salary this app tracks against usually lands.
+export const DEFAULT_SETTINGS: Settings = { monthlyBudget: 0, cycleStartDay: 25 }
 
 function load<T>(key: string, fallback: T): T {
   try {
@@ -71,7 +72,11 @@ export function useStore() {
         (e) => typeof e.id === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(e.date) && Number.isFinite(e.amount),
       )
       setExpenses(valid)
-      if (data.settings) setSettings({ ...DEFAULT_SETTINGS, ...data.settings })
+      if (data.settings) {
+        const merged = { ...DEFAULT_SETTINGS, ...data.settings }
+        merged.cycleStartDay = Math.min(31, Math.max(1, Math.round(merged.cycleStartDay) || 1))
+        setSettings(merged)
+      }
       return valid.length
     },
     [setExpenses, setSettings],

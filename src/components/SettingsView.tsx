@@ -1,9 +1,7 @@
 import { useRef, useState } from 'react'
-import { daysInMonth, monthKey, round2 } from '../budget'
+import { cycleFor, round2 } from '../budget'
 import { money } from '../format'
 import type { Store } from '../store'
-
-const CURRENCIES = ['USD', 'EUR', 'GBP', 'INR', 'PKR', 'AED', 'SAR', 'CAD', 'AUD', 'SGD', 'JPY']
 
 interface Props {
   store: Store
@@ -14,15 +12,24 @@ interface Props {
 export function SettingsView({ store, today, notify }: Props) {
   const { settings, setSettings } = store
   const [budget, setBudget] = useState(settings.monthlyBudget ? String(settings.monthlyBudget) : '')
+  const [cycleDay, setCycleDay] = useState(String(settings.cycleStartDay))
   const fileInput = useRef<HTMLInputElement>(null)
 
-  const parsed = Number(budget)
-  const budgetValid = budget.trim() !== '' && Number.isFinite(parsed) && parsed >= 0
-  const preview = budgetValid ? round2(parsed / daysInMonth(monthKey(today))) : 0
+  const parsedBudget = Number(budget)
+  const budgetValid = budget.trim() !== '' && Number.isFinite(parsedBudget) && parsedBudget >= 0
 
-  function saveBudget() {
-    if (!budgetValid) return
-    setSettings({ ...settings, monthlyBudget: round2(parsed) })
+  const parsedCycleDay = Math.round(Number(cycleDay))
+  const cycleDayValid = cycleDay.trim() !== '' && Number.isFinite(parsedCycleDay) && parsedCycleDay >= 1 && parsedCycleDay <= 31
+
+  const previewCycle = cycleDayValid ? cycleFor(today, parsedCycleDay) : null
+  const previewDays = previewCycle
+    ? Math.round((previewCycle.end.getTime() - previewCycle.start.getTime()) / 86_400_000) + 1
+    : 0
+  const preview = budgetValid && previewDays > 0 ? round2(parsedBudget / previewDays) : 0
+
+  function save() {
+    if (!budgetValid || !cycleDayValid) return
+    setSettings({ ...settings, monthlyBudget: round2(parsedBudget), cycleStartDay: parsedCycleDay })
     notify('Budget saved')
   }
 
@@ -48,48 +55,60 @@ export function SettingsView({ store, today, notify }: Props) {
   return (
     <>
       <section className="card">
-        <h2 className="card-title">Monthly budget</h2>
+        <h2 className="card-title">Budget cycle</h2>
         <form
           className="expense-form"
           onSubmit={(e) => {
             e.preventDefault()
-            saveBudget()
+            save()
           }}
         >
-          <input
-            className="field"
-            type="number"
-            inputMode="decimal"
-            min="0"
-            step="0.01"
-            placeholder="e.g. 3000"
-            value={budget}
-            onChange={(e) => setBudget(e.target.value)}
-            aria-label="Monthly budget"
-          />
-          {budgetValid && parsed > 0 && (
+          <label className="field-label">
+            Budget per cycle
+            <input
+              className="field"
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              placeholder="e.g. 30000"
+              value={budget}
+              onChange={(e) => setBudget(e.target.value)}
+              aria-label="Budget per cycle"
+            />
+          </label>
+
+          <label className="field-label">
+            Cycle starts on day
+            <input
+              className="field"
+              type="number"
+              inputMode="numeric"
+              min="1"
+              max="31"
+              value={cycleDay}
+              onChange={(e) => setCycleDay(e.target.value)}
+              aria-label="Cycle start day"
+            />
+          </label>
+          <p className="muted small">
+            Your salary usually lands around the 25th (a little earlier if that's a Friday or a holiday) — set the
+            day your budget cycle should restart. Use 1 for a plain calendar month.
+          </p>
+
+          {budgetValid && cycleDayValid && parsedBudget > 0 && previewCycle && (
             <p className="muted small">
-              That's about {money(preview, settings.currency)} per day this month.
+              That's {money(preview)} per day, over {previewDays} days
+              {parsedCycleDay !== 1 &&
+                ` (${previewCycle.start.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} – ${previewCycle.end.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })})`}
+              .
             </p>
           )}
-          <button className="btn primary" type="submit" disabled={!budgetValid}>
-            Save budget
+
+          <button className="btn primary" type="submit" disabled={!budgetValid || !cycleDayValid}>
+            Save
           </button>
         </form>
-      </section>
-
-      <section className="card">
-        <h2 className="card-title">Currency</h2>
-        <select
-          className="field"
-          value={settings.currency}
-          onChange={(e) => setSettings({ ...settings, currency: e.target.value })}
-          aria-label="Currency"
-        >
-          {CURRENCIES.map((c) => (
-            <option key={c}>{c}</option>
-          ))}
-        </select>
       </section>
 
       <section className="card">

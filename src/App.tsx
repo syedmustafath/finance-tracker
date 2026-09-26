@@ -121,7 +121,6 @@ export default function App() {
         <EditSheet
           key={editing.id}
           expense={editing}
-          currency={store.settings.currency}
           onClose={closeSheet}
           onSave={(patch) => {
             store.updateExpense(editing.id, patch)
@@ -132,7 +131,7 @@ export default function App() {
             const removed = editing
             store.deleteExpense(removed.id)
             setEditing(null)
-            notify(`Deleted ${money(removed.amount, store.settings.currency)}`, () => store.restoreExpense(removed))
+            notify(`Deleted ${money(removed.amount)}`, () => store.restoreExpense(removed))
           }}
         />
       )}

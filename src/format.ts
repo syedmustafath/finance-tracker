@@ -1,18 +1,16 @@
-import { parseISODate, toISODate } from './budget'
+import { parseISODate, toISODate, type Cycle } from './budget'
 
-const formatters = new Map<string, Intl.NumberFormat>()
-
-export function money(amount: number, currency: string): string {
-  let f = formatters.get(currency)
-  if (!f) {
-    try {
-      f = new Intl.NumberFormat(undefined, { style: 'currency', currency })
-    } catch {
-      f = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    }
-    formatters.set(currency, f)
+const currencyFormatter = (() => {
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'BDT', currencyDisplay: 'narrowSymbol' })
+  } catch {
+    return null
   }
-  return f.format(amount)
+})()
+
+export function money(amount: number): string {
+  if (currencyFormatter) return currencyFormatter.format(amount)
+  return `৳${amount.toFixed(2)}`
 }
 
 export function dayLabel(iso: string, today = new Date()): string {
@@ -23,6 +21,12 @@ export function dayLabel(iso: string, today = new Date()): string {
   return parseISODate(iso).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' })
 }
 
-export function monthLabel(key: string): string {
-  return parseISODate(`${key}-01`).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+/** Label for a budget cycle, e.g. "September 2026" for a plain calendar month, or "25 Aug – 24 Sep 2026" otherwise */
+export function cycleLabel(cycle: Cycle, cycleStartDay: number): string {
+  if (cycleStartDay === 1) {
+    return cycle.start.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+  }
+  const start = cycle.start.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+  const end = cycle.end.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+  return `${start} – ${end}`
 }

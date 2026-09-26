@@ -3,7 +3,6 @@ import { money } from '../format'
 
 interface Props {
   summary: BudgetSummary
-  currency: string
 }
 
 function Ring({ fraction, over }: { fraction: number; over: boolean }) {
@@ -25,7 +24,7 @@ function Ring({ fraction, over }: { fraction: number; over: boolean }) {
   )
 }
 
-export function BudgetCard({ summary: s, currency }: Props) {
+export function BudgetCard({ summary: s }: Props) {
   const todayOver = s.remainingToday < 0
   const monthOver = s.remainingThisMonth < 0
   const todayFraction = s.adjustedDailyBudget > 0 ? s.spentToday / s.adjustedDailyBudget : s.spentToday > 0 ? 1 : 0
@@ -38,23 +37,23 @@ export function BudgetCard({ summary: s, currency }: Props) {
           <Ring fraction={todayFraction} over={todayOver} />
           <div className="ring-label">
             <span className="muted small">{todayOver ? 'Over today' : 'Left today'}</span>
-            <strong className={todayOver ? 'neg' : ''}>{money(Math.abs(s.remainingToday), currency)}</strong>
+            <strong className={todayOver ? 'neg' : ''}>{money(Math.abs(s.remainingToday))}</strong>
           </div>
         </div>
         <dl className="hero-stats">
           <div>
             <dt>Spent today</dt>
-            <dd>{money(s.spentToday, currency)}</dd>
+            <dd>{money(s.spentToday)}</dd>
           </div>
           <div>
             <dt>Daily budget</dt>
-            <dd>{money(s.dailyBudget, currency)}</dd>
+            <dd>{money(s.dailyBudget)}</dd>
           </div>
           <div>
-            <dt title="What you can spend per day for the rest of the month and still finish on budget">
+            <dt title="What you can spend per day for the rest of the cycle and still finish on budget">
               Adjusted daily
             </dt>
-            <dd>{money(s.adjustedDailyBudget, currency)}</dd>
+            <dd>{money(s.adjustedDailyBudget)}</dd>
           </div>
         </dl>
       </div>
@@ -62,8 +61,8 @@ export function BudgetCard({ summary: s, currency }: Props) {
       <div className="month-bar">
         <div className="month-bar-labels">
           <span>
-            <span className="muted">This month </span>
-            {money(s.spentThisMonth, currency)} <span className="muted">of {money(s.monthlyBudget, currency)}</span>
+            <span className="muted">This cycle </span>
+            {money(s.spentThisMonth)} <span className="muted">of {money(s.monthlyBudget)}</span>
           </span>
         </div>
         <div className="bar">
@@ -74,9 +73,7 @@ export function BudgetCard({ summary: s, currency }: Props) {
         </div>
         <div className="month-bar-labels">
           <span className={monthOver ? 'neg' : 'pos'}>
-            {monthOver
-              ? `${money(-s.remainingThisMonth, currency)} over budget`
-              : `${money(s.remainingThisMonth, currency)} remaining`}
+            {monthOver ? `${money(-s.remainingThisMonth)} over budget` : `${money(s.remainingThisMonth)} remaining`}
           </span>
           <span className="muted">
             {s.daysLeft} day{s.daysLeft === 1 ? '' : 's'} left

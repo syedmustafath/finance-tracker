@@ -10,7 +10,13 @@ export interface Expense {
 
 export interface Settings {
   monthlyBudget: number
-  currency: string
+  /**
+   * Day of the month a budget cycle starts on (1-31). 1 = a plain calendar
+   * month. A cycle runs from this day up to (but not including) its next
+   * occurrence, e.g. 25 means "25th to 24th". Days beyond the end of a
+   * shorter month clamp to that month's last day.
+   */
+  cycleStartDay: number
 }
 
 export const CATEGORIES = [
@@ -29,6 +35,7 @@ export function categoryFor(id: string) {
 }
 
 const pad = (n: number) => String(n).padStart(2, '0')
+const DAY_MS = 24 * 60 * 60 * 1000
 
 export function toISODate(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
@@ -39,19 +46,73 @@ export function parseISODate(s: string): Date {
   return new Date(y, m - 1, d)
 }
 
-/** YYYY-MM key for a date string or Date */
-export function monthKey(d: string | Date): string {
-  return typeof d === 'string' ? d.slice(0, 7) : toISODate(d).slice(0, 7)
+function addDays(d: Date, n: number): Date {
+  const next = new Date(d)
+  next.setDate(next.getDate() + n)
+  return next
 }
 
-export function daysInMonth(key: string): number {
-  const [y, m] = key.split('-').map(Number)
-  return new Date(y, m, 0).getDate()
+/** Number of calendar days between two dates, inclusive of both ends */
+function daysBetweenInclusive(a: Date, b: Date): number {
+  return Math.round((startOfDay(b).getTime() - startOfDay(a).getTime()) / DAY_MS) + 1
 }
 
-export function shiftMonth(key: string, delta: number): string {
-  const [y, m] = key.split('-').map(Number)
-  return monthKey(new Date(y, m - 1 + delta, 1))
+function startOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate())
+}
+
+function daysInCalendarMonth(year: number, month0: number): number {
+  return new Date(year, month0 + 1, 0).getDate()
+}
+
+/** Clamps a target day-of-month to that month's actual last day */
+function clampDay(year: number, month0: number, day: number): number {
+  return Math.min(day, daysInCalendarMonth(year, month0))
+}
+
+export interface Cycle {
+  start: Date
+  end: Date
+  /** Stable identifier for this cycle: its start date, YYYY-MM-DD */
+  key: string
+}
+
+/** The budget cycle a given date falls in, per the configured start day */
+export function cycleFor(date: Date, startDay: number): Cycle {
+  const y = date.getFullYear()
+  const m = date.getMonth()
+  const boundary = clampDay(y, m, startDay)
+
+  let start: Date
+  if (date.getDate() >= boundary) {
+    start = new Date(y, m, boundary)
+  } else {
+    const py = m === 0 ? y - 1 : y
+    const pm = m === 0 ? 11 : m - 1
+    start = new Date(py, pm, clampDay(py, pm, startDay))
+  }
+
+  const ny = start.getMonth() === 11 ? start.getFullYear() + 1 : start.getFullYear()
+  const nm = start.getMonth() === 11 ? 0 : start.getMonth() + 1
+  const end = addDays(new Date(ny, nm, clampDay(ny, nm, startDay)), -1)
+
+  return { start, end, key: toISODate(start) }
+}
+
+/** Resolves a cycle from its start-date key (as produced by `cycleFor`/`shiftCycle`) */
+export function cycleFromKey(key: string, startDay: number): Cycle {
+  return cycleFor(parseISODate(key), startDay)
+}
+
+/** The next or previous cycle relative to one identified by its start-date key */
+export function shiftCycle(key: string, delta: number, startDay: number): Cycle {
+  let cycle = cycleFromKey(key, startDay)
+  if (delta >= 0) {
+    for (let i = 0; i < delta; i++) cycle = cycleFor(addDays(cycle.end, 1), startDay)
+  } else {
+    for (let i = 0; i < -delta; i++) cycle = cycleFor(addDays(cycle.start, -1), startDay)
+  }
+  return cycle
 }
 
 export function sum(expenses: Expense[]): number {
@@ -64,30 +125,33 @@ export function round2(n: number): number {
 
 export interface BudgetSummary {
   monthlyBudget: number
-  /** Flat daily budget: monthly budget spread evenly across the month */
+  cycle: Cycle
+  /** Flat daily budget: cycle budget spread evenly across the cycle's days */
   dailyBudget: number
   spentThisMonth: number
   remainingThisMonth: number
   spentToday: number
-  /** Days left in the month, including today */
+  /** Days left in the cycle, including today */
   daysLeft: number
   /**
-   * What you can spend per day from today onwards to finish the month on budget.
+   * What you can spend per day from today onwards to finish the cycle on budget.
    * Based on what was left at the start of today, so spending today doesn't move it.
    */
   adjustedDailyBudget: number
   remainingToday: number
 }
 
-export function summarize(expenses: Expense[], monthlyBudget: number, today: Date): BudgetSummary {
+export function summarize(expenses: Expense[], monthlyBudget: number, today: Date, cycleStartDay: number): BudgetSummary {
   const todayISO = toISODate(today)
-  const month = monthKey(today)
-  const totalDays = daysInMonth(month)
-  const daysLeft = totalDays - today.getDate() + 1
+  const cycle = cycleFor(today, cycleStartDay)
+  const startISO = toISODate(cycle.start)
+  const endISO = toISODate(cycle.end)
+  const totalDays = daysBetweenInclusive(cycle.start, cycle.end)
+  const daysLeft = daysBetweenInclusive(today, cycle.end)
 
-  const inMonth = expenses.filter((e) => monthKey(e.date) === month)
-  const spentThisMonth = sum(inMonth)
-  const spentToday = sum(inMonth.filter((e) => e.date === todayISO))
+  const inCycle = expenses.filter((e) => e.date >= startISO && e.date <= endISO)
+  const spentThisMonth = sum(inCycle)
+  const spentToday = sum(inCycle.filter((e) => e.date === todayISO))
   const spentBeforeToday = round2(spentThisMonth - spentToday)
 
   const dailyBudget = round2(monthlyBudget / totalDays)
@@ -95,6 +159,7 @@ export function summarize(expenses: Expense[], monthlyBudget: number, today: Dat
 
   return {
     monthlyBudget,
+    cycle,
     dailyBudget,
     spentThisMonth,
     remainingThisMonth: round2(monthlyBudget - spentThisMonth),

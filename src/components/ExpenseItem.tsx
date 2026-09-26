@@ -3,11 +3,10 @@ import { money } from '../format'
 
 interface Props {
   expense: Expense
-  currency: string
   onClick: () => void
 }
 
-export function ExpenseItem({ expense, currency, onClick }: Props) {
+export function ExpenseItem({ expense, onClick }: Props) {
   const cat = categoryFor(expense.category)
   return (
     <li>
@@ -19,7 +18,7 @@ export function ExpenseItem({ expense, currency, onClick }: Props) {
           <span className="expense-title">{expense.note || cat.label}</span>
           {expense.note && <span className="expense-sub">{cat.label}</span>}
         </span>
-        <span className="expense-amount">{money(expense.amount, currency)}</span>
+        <span className="expense-amount">{money(expense.amount)}</span>
       </button>
     </li>
   )

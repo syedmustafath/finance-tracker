@@ -373,6 +373,15 @@ select {
   border-color: var(--accent);
 }
 
+.field-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
 /* Buttons */
 .btn {
   border: 0;
